@@ -16,12 +16,12 @@ import plotly.tools as tls
 from plotly.graph_objs import Data, Layout, Figure, Stream, Scatter, YAxis, XAxis
 
 
-username = tls.get_credentials_file()['username']
+USERNAME = tls.get_credentials_file()['username']
 API_KEY = tls.get_credentials_file()['api_key']
 STREAM_TOKEN = tls.get_credentials_file()['stream_ids'][0]
 SLEEP_DELAY = 900
 
-py.sign_in(username, API_KEY)
+py.sign_in(USERNAME, API_KEY)
 
 my_stream = Stream(token=STREAM_TOKEN, maxpoints=200)
 my_data = Data([Scatter(x=[], y=[], stream=my_stream)])
