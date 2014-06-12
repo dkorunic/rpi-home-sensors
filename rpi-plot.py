@@ -110,7 +110,7 @@ def plot_data(debug=False):
     my_scatter_temp = Scatter(x=[], y=[], stream=my_stream_temp,
                               name='Environment temperature', mode=GRAPH_MODE)
     my_scatter_humidity = Scatter(x=[], y=[], stream=my_stream_humidity,
-                                  name='Environment Humidity', mode=GRAPH_MODE)
+                                  name='Environment humidity', mode=GRAPH_MODE)
     my_scatter_pressure = Scatter(x=[], y=[], stream=my_stream_pressure,
                                   name='Barometric pressure', yaxis='y2',
                                   mode=GRAPH_MODE)
