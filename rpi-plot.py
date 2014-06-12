@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-# -*- coding: iso-8859-1 -*-
+# -*- coding: utf-8 -*-
 
 """Raspberry PI temperature graphing PoC through PlotLy
 
    Plots CPU temperature (directly from RPI), environment temperature (BMP085),
-   environment barometric pressure (BMP085), environment humidity (DHT22).
+   environment barometric pressure (BMP085), environment humidity (DHT22). It runs as
+   a Unix daemon and preferably runs infinitely long.
 
    Hardware requirements:
    - Raspberry PI
@@ -19,17 +20,41 @@
    - Adafruit BMP085 I2C library: included!
    - Adafruit DHT GPIO library: https://github.com/adafruit/Adafruit_Python_DHT
    - PlotLy account:  http://plot.ly
+
+   Note:
+   - Raspberry PI model A users need to edit Adafruit_I2C.py and do the following change:
+   self.bus = smbus.SMBus(0);
+"""
+
+__copyright__ = """Copyright (C) 2014  Dinko Korunic <dinko.korunic@gmail.com>
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation; either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 """
 
 import time
 import datetime
 import sys
+import os
+import socket
 
 import Adafruit_DHT
 import Adafruit_BMP085
 import daemon
-import plotly.plotly as py
-import plotly.tools as tls
+import plotly.exceptions
+import plotly.plotly
+import plotly.tools
 from plotly.graph_objs import Data, Layout, Figure, Stream, Scatter, YAxis, XAxis, Font
 
 
@@ -45,23 +70,33 @@ GRAPH_MODE = 'lines+markers'
 
 
 def read_cpu():
-    cpu_temp = 50.0
+    """
+    Fetch temperature from CPU0 thermal zone from /proc file and return float.
+    """
     try:
-        cpu_temp = float(open('/sys/class/thermal/thermal_zone0/temp').read()) / 1000.
-    except:
-        pass
+        tz_file = open('/sys/class/thermal/thermal_zone0/temp')
+        try:
+            cpu_temp = float(tz_file.read()) / 1000.
+        finally:
+            tz_file.close()
+    except IOError, msg:
+        raise RuntimeError(msg)
 
     return cpu_temp
 
 
 def plot_data(debug=False):
+    """
+    Gather all data from DHT and BMP sensors and graph on PlotLy. Tries to be resilient to most intermittent
+    errors.
+    """
     # pull in PlotLy authentication data
-    plotly_creds = tls.get_credentials_file()
+    plotly_creds = plotly.tools.get_credentials_file()
     username = plotly_creds['username']
     api_key = plotly_creds['api_key']
     token_cpu, token_temp, token_humidity, token_pressure = plotly_creds['stream_ids'][0:4]
 
-    py.sign_in(username, api_key)
+    plotly.plotly.sign_in(username, api_key)
 
     # create Stream objects with proper tokens and maximum preserved graph points
     my_stream_cpu = Stream(token=token_cpu, maxpoints=MAX_POINTS)
@@ -95,52 +130,85 @@ def plot_data(debug=False):
     my_fig = Figure(data=my_data, layout=my_layout)
 
     # overwrite existing data on creating the new figure
-    py.plot(my_fig, filename=PLOTLY_CHART_NAME, auto_open=False, fileopt='overwrite')
+    plotly.plotly.plot(my_fig, filename=PLOTLY_CHART_NAME, auto_open=False, fileopt='overwrite')
 
-    # initialize BMP085 or any of compatible equivalents
-    bmp = Adafruit_BMP085.BMP085(BMP085_ADDRESS, BMP085_MODE)
+    try:
+        # initialize BMP085 or any of compatible equivalents
+        bmp = Adafruit_BMP085.BMP085(BMP085_ADDRESS, BMP085_MODE)
+    except IOError:
+        print >> sys.stderr, 'ERROR: I2C BMP085 reading failure.'
+        sys.exit(1)
 
     # initialize Streams with different stream ids, so that each has its own trace
-    s_cpu = py.Stream(token_cpu)
-    s_temp = py.Stream(token_temp)
-    s_humidity = py.Stream(token_humidity)
-    s_pressure = py.Stream(token_pressure)
-
-    s_cpu.open()
-    s_temp.open()
-    s_humidity.open()
-    s_pressure.open()
+    s_cpu = plotly.plotly.Stream(token_cpu)
+    s_temp = plotly.plotly.Stream(token_temp)
+    s_humidity = plotly.plotly.Stream(token_humidity)
+    s_pressure = plotly.plotly.Stream(token_pressure)
 
     while True:
         try:
-            # gather data
-            cpu_temp = read_cpu()
-            dht_hum, dht_temp = Adafruit_DHT.read_retry(DHT_VER, DHT_GPIO)
-            bmp_temp = bmp.readTemperature()
-            bmp_pres = bmp.readPressure() / 100.0
+            s_cpu.open()
+            s_temp.open()
+            s_humidity.open()
+            s_pressure.open()
+        except socket.error:
+            print >> sys.stderr, 'ERROR: socket error connecting to PlotLy. Retrying in 300 seconds..'
+            time.sleep(300)
 
-            date_stamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        while True:
+            try:
+                # gather data
+                try:
+                    cpu_temp = read_cpu()
+                except RuntimeError:
+                    print >> sys.stderr, 'ERROR: CPU0 thermal zone reading failure.'
+                    sys.exit(1)
 
-            if debug:
-                print 'Timestamp: %s' % date_stamp
-                print 'CPU Temp: %.2f ºC' % cpu_temp
-                print 'DHT Humidity: %.2f %%' % dht_hum
-                print 'DHT Temperature: %.2f ºC' % dht_temp
-                print 'BMP Temperature: %.2f ºC' % bmp_temp
-                print 'BMP Pressure: %.2f hPa' % bmp_pres
+                try:
+                    dht_hum, dht_temp = Adafruit_DHT.read_retry(DHT_VER, DHT_GPIO)
+                except RuntimeError:
+                    print >> sys.stderr, 'ERROR: GPIO DHT reading failure.'
+                    sys.exit(1)
 
-            # push data to PlotLy
-            s_cpu.write(dict(x=date_stamp, y=cpu_temp))
-            s_temp.write(dict(x=date_stamp, y=bmp_temp))
-            s_humidity.write(dict(x=date_stamp, y=dht_hum))
-            s_pressure.write(dict(x=date_stamp, y=bmp_pres))
+                try:
+                    bmp_temp = bmp.readTemperature()
+                    bmp_pres = bmp.readPressure() / 100.0
+                except IOError:
+                    print >> sys.stderr, 'ERROR: I2C BMP085 reading failure.'
+                    sys.exit(1)
 
-            time.sleep(SLEEP_DELAY)
-        finally:
-            s_cpu.close()
-            s_temp.close()
-            s_humidity.close()
-            s_pressure.close()
+                date_stamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+
+                if debug:
+                    print 'Timestamp: %s' % date_stamp
+                    print 'CPU Temp: %.2f ÂºC' % cpu_temp
+                    print 'DHT Humidity: %.2f %%' % dht_hum
+                    print 'DHT Temperature: %.2f ÂºC' % dht_temp
+                    print 'BMP Temperature: %.2f ÂºC' % bmp_temp
+                    print 'BMP Pressure: %.2f hPa' % bmp_pres
+                    print 40 * '-'
+
+                try:
+                    # push data to PlotLy
+                    s_cpu.write(dict(x=date_stamp, y=cpu_temp))
+                    s_temp.write(dict(x=date_stamp, y=bmp_temp))
+                    s_humidity.write(dict(x=date_stamp, y=dht_hum))
+                    s_pressure.write(dict(x=date_stamp, y=bmp_pres))
+
+                    time.sleep(SLEEP_DELAY)
+                except (IOError, socket.error, plotly.exceptions.PlotlyError):
+                    print >> sys.stderr, 'ERROR: socket error writing to PlotLy. Retrying in 300 seconds..'
+                    time.sleep(300)
+                    break
+
+            finally:
+                try:
+                    s_cpu.close()
+                    s_temp.close()
+                    s_humidity.close()
+                    s_pressure.close()
+                except plotly.exceptions.PlotlyError:
+                    pass
 
 
 def run():
@@ -152,6 +220,10 @@ def run():
     if 'debug' in sys.argv:
         my_debug = True
         my_daemon = False
+
+    if os.geteuid() != 0:
+        print >> sys.stderr, 'ERROR: You need root to be able to read GPIO, I2C and CPU thermal zones.'
+        sys.exit(1)
 
     # preferably daemonize
     if my_daemon:
