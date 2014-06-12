@@ -2,6 +2,23 @@
 # -*- coding: iso-8859-1 -*-
 
 """Raspberry PI temperature graphing PoC through PlotLy
+
+   Plots CPU temperature (directly from RPI), environment temperature (BMP085),
+   environment barometric pressure (BMP085), environment humidity (DHT22).
+
+   Hardware requirements:
+   - Raspberry PI
+   - dupont cables or cobbler with breadboard (GPIO and I2C)
+   - BMP085, BMP180, BMP183: https://www.adafruit.com/products/1900
+   - DHT11, DHT22 or DHT2302: https://www.adafruit.com/products/385
+
+   Requirements:
+   - Raspberry PI model A or B
+   - WiringPI library: git://git.drogon.net/wiringPi
+   - bcm2835 library: http://www.airspayce.com/mikem/bcm2835/
+   - Adafruit BMP085 I2C library: included!
+   - Adafruit DHT GPIO library: https://github.com/adafruit/Adafruit_Python_DHT
+   - PlotLy account:  http://plot.ly
 """
 
 import time
@@ -91,10 +108,10 @@ def plot_data(debug=False):
 
             if debug:
                 print 'Timestamp: %s' % date_stamp
-                print 'CPU Temp: %.2f C' % cpu_temp
+                print 'CPU Temp: %.2f ºC' % cpu_temp
                 print 'DHT Humidity: %.2f %%' % dht_hum
-                print 'DHT Temperature: %.2f C' % dht_temp
-                print 'BMP Temperature: %.2f C' % bmp_temp
+                print 'DHT Temperature: %.2f ºC' % dht_temp
+                print 'BMP Temperature: %.2f ºC' % bmp_temp
                 print 'BMP Pressure: %.2f hPa' % bmp_pres
 
             s_cpu.write(dict(x=date_stamp, y=cpu_temp))
