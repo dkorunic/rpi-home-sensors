@@ -1,7 +1,7 @@
 README
 ======
 
-This is a Raspberry PI temperature graphing PoC through Plotly.
+This is a Raspberry Pi temperature graphing PoC through Plotly.
 
 Plots CPU temperature (directly from RPI), environment temperature
 (BMP085), environment barometric pressure (BMP085), environment humidity

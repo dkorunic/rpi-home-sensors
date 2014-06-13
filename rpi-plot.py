@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Raspberry PI temperature graphing PoC through Plotly
+"""Raspberry Pi temperature graphing PoC through Plotly
 
    Plots CPU temperature (directly from RPI), environment temperature (BMP085),
    environment barometric pressure (BMP085), environment humidity (DHT22).
