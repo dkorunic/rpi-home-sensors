@@ -20,6 +20,8 @@
    - Adafruit BMP085 I2C library: included!
    - Adafruit DHT GPIO library: https://github.com/adafruit/Adafruit_Python_DHT
    - PlotLy account:  http://plot.ly
+   - PlotLy library: pip install plotly
+   - daemon library: pip install daemon
 
    Note:
    - Raspberry PI model A users need to edit Adafruit_I2C.py and do the following change:
@@ -66,10 +68,36 @@ BMP085_MODE = 1  # 0 = ULTRALOWPOWER, 1 = STANDARD, 2 = HIRES, 3 = ULTRAHIRES
 SLEEP_DELAY = 300  # poll delay
 PLOTLY_CHART_NAME = 'Raspberry PI'  # graph title
 MAX_POINTS = 300  # graph data points
-GRAPH_MODE = 'lines+markers'
+GRAPH_MODE = 'lines'  # lines or lines+markers trace type
 
 
-def read_cpu():
+def backoff_sleep(reset=False, delay=2, max_delay=1024, debug=False):
+    """
+    Sleep function with exponential backoff with deterministic maximum and option to reset delay to default.
+
+    :param reset: Resets the next run to default delay without backoff
+    :param delay: Initial backoff delay
+    :param max_delay: Maximal backoff after which delay becomes constant
+    :param debug: In debug mode it displays the amount of backoff seconds done
+    """
+    global _backoff_delay
+
+    if reset:
+        _backoff_delay = None
+    else:
+        if not '_backoff_delay' in globals() or _backoff_delay is None:
+            _backoff_delay = delay
+
+        if debug:
+            print >> sys.stderr, 'INFO: Backoff initiated in the duration %d seconds.' % _backoff_delay
+        time.sleep(_backoff_delay)
+
+        _backoff_delay *= 2
+        if _backoff_delay > max_delay:
+            _backoff_delay = max_delay
+
+
+def read_rpi_cpu():
     """
     Fetch temperature from CPU0 thermal zone from /proc file and return float.
     """
@@ -85,10 +113,23 @@ def read_cpu():
     return cpu_temp
 
 
-def plot_data(debug=False):
+def init_bmp():
     """
-    Gather all data from DHT and BMP sensors and graph on PlotLy. Tries to be resilient to most intermittent
-    errors.
+    Initializes BMP085, BMP180 or BMP183 devices.
+    """
+    try:
+
+        bmp = Adafruit_BMP085.BMP085(BMP085_ADDRESS, BMP085_MODE)
+    except IOError:
+        print >> sys.stderr, 'ERROR: I2C BMP085 reading failure.'
+        sys.exit(1)
+
+    return bmp
+
+
+def init_plotly():
+    """
+    Prepares authenticate tokens for each trace, prepares layout and streams with corresponding scatter graph traces.
     """
     # pull in PlotLy authentication data
     plotly_creds = plotly.tools.get_credentials_file()
@@ -132,18 +173,24 @@ def plot_data(debug=False):
     # overwrite existing data on creating the new figure
     plotly.plotly.plot(my_fig, filename=PLOTLY_CHART_NAME, auto_open=False, fileopt='overwrite')
 
-    try:
-        # initialize BMP085 or any of compatible equivalents
-        bmp = Adafruit_BMP085.BMP085(BMP085_ADDRESS, BMP085_MODE)
-    except IOError:
-        print >> sys.stderr, 'ERROR: I2C BMP085 reading failure.'
-        sys.exit(1)
-
     # initialize Streams with different stream ids, so that each has its own trace
     s_cpu = plotly.plotly.Stream(token_cpu)
     s_temp = plotly.plotly.Stream(token_temp)
     s_humidity = plotly.plotly.Stream(token_humidity)
     s_pressure = plotly.plotly.Stream(token_pressure)
+
+    return s_cpu, s_humidity, s_pressure, s_temp
+
+
+def plot_data(debug=False):
+    """
+    Gather all data from DHT and BMP sensors and graph on PlotLy. Tries to be resilient to most intermittent
+    errors.
+
+    :param debug: Control of verbose sensor readouts
+    """
+    bmp = init_bmp()
+    s_cpu, s_humidity, s_pressure, s_temp = init_plotly()
 
     while True:
         try:
@@ -152,29 +199,33 @@ def plot_data(debug=False):
             s_humidity.open()
             s_pressure.open()
         except socket.error:
-            print >> sys.stderr, 'ERROR: socket error connecting to PlotLy. Retrying in 300 seconds..'
-            time.sleep(300)
+            if debug:
+                print >> sys.stderr, 'ERROR: socket error connecting to PlotLy. Retrying...'
+            backoff_sleep(delay=60, debug=debug)
 
         while True:
             try:
                 # gather data
                 try:
-                    cpu_temp = read_cpu()
+                    cpu_temp = read_rpi_cpu()
                 except RuntimeError:
-                    print >> sys.stderr, 'ERROR: CPU0 thermal zone reading failure.'
+                    if debug:
+                        print >> sys.stderr, 'ERROR: CPU0 thermal zone reading failure.'
                     sys.exit(1)
 
                 try:
                     dht_hum, dht_temp = Adafruit_DHT.read_retry(DHT_VER, DHT_GPIO)
                 except RuntimeError:
-                    print >> sys.stderr, 'ERROR: GPIO DHT reading failure.'
+                    if debug:
+                        print >> sys.stderr, 'ERROR: GPIO DHT reading failure.'
                     sys.exit(1)
 
                 try:
                     bmp_temp = bmp.readTemperature()
                     bmp_pres = bmp.readPressure() / 100.0
                 except IOError:
-                    print >> sys.stderr, 'ERROR: I2C BMP085 reading failure.'
+                    if debug:
+                        print >> sys.stderr, 'ERROR: I2C BMP085 reading failure.'
                     sys.exit(1)
 
                 date_stamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -195,10 +246,12 @@ def plot_data(debug=False):
                     s_humidity.write(dict(x=date_stamp, y=dht_hum))
                     s_pressure.write(dict(x=date_stamp, y=bmp_pres))
 
+                    backoff_sleep(reset=True)
                     time.sleep(SLEEP_DELAY)
                 except (IOError, socket.error, plotly.exceptions.PlotlyError):
-                    print >> sys.stderr, 'ERROR: socket error writing to PlotLy. Retrying in 300 seconds..'
-                    time.sleep(300)
+                    if debug:
+                        print >> sys.stderr, 'ERROR: socket error writing to PlotLy. Retrying...'
+                    backoff_sleep(delay=60, debug=debug)
                     break
 
             finally:
