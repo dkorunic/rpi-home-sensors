@@ -33,3 +33,6 @@ Note:
 ```
     self.bus = smbus.SMBus(0);
 ```
+
+Snapshot:
+![http://raw.githubusercontent.com/dkorunic/rpi-tools/master/rpi-plot.png](http://raw.githubusercontent.com/dkorunic/rpi-tools/master/rpi-plot.png)
