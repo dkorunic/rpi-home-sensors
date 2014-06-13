@@ -4,7 +4,8 @@
 """Raspberry PI temperature graphing PoC through Plotly
 
    Plots CPU temperature (directly from RPI), environment temperature (BMP085),
-   environment barometric pressure (BMP085), environment humidity (DHT22). It runs as
+   environment barometric pressure (BMP085), environment humidity (DHT22).
+   and outdoor temperature (Weather Underground). It runs as
    a Unix daemon and preferably runs infinitely long.
 
    Hardware requirements:

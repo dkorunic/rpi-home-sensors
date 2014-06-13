@@ -1,25 +1,22 @@
 README
 ======
 
-Collection of my various Raspberry PI tools, hacks and scripts.
-
-
-rpi-plot.py
------------
-
 This is a Raspberry PI temperature graphing PoC through Plotly.
 
-Plots CPU temperature (directly from RPI), environment temperature (BMP085),
-environment barometric pressure (BMP085), environment humidity (DHT22). It runs as
-a Unix daemon and preferably runs infinitely long.
+Plots CPU temperature (directly from RPI), environment temperature
+(BMP085), environment barometric pressure (BMP085), environment humidity
+(DHT22) and outdoor temperature (Weather Underground). It runs as a Unix
+daemon and preferably runs infinitely long.
 
-Hardware requirements:
+Hardware requirements
+---------------------
 * Raspberry PI
 * dupont cables or cobbler with breadboard (GPIO and I2C)
 * BMP085, BMP180, BMP183: https://www.adafruit.com/products/1900
 * DHT11, DHT22 or DHT2302: https://www.adafruit.com/products/385
 
-Requirements:
+Software Requirements
+---------------------
 * Raspberry PI model A or B
 * WiringPI library: git://git.drogon.net/wiringPi
 * bcm2835 library: http://www.airspayce.com/mikem/bcm2835/
@@ -30,7 +27,8 @@ Requirements:
 * Plotly library: pip install plotly
 * daemon library: pip install daemon
 
-Important notes:
+Important notes
+---------------
 * Raspberry PI model A users need to edit Adafruit_I2C.py and do the following change:
 
 ```
@@ -43,5 +41,10 @@ Important notes:
    {"wu_city": "Zagreb", "wu_state": "Croatia", "wu_key": "XXXX"}
 ```
 
-Snapshot:
+Snapshot
+--------
 ![/rpi-plot.png](/rpi-plot.png)
+
+Copyright
+---------
+Copyright (C) 2014  Dinko Korunic <dinko.korunic@gmail.com>
