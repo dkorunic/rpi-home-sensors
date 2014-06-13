@@ -35,4 +35,4 @@ Note:
 ```
 
 Snapshot:
-![http://raw.githubusercontent.com/dkorunic/rpi-tools/master/rpi-plot.png](http://raw.githubusercontent.com/dkorunic/rpi-tools/master/rpi-plot.png)
+![/rpi-plot.png](/rpi-plot.png)
