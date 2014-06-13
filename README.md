@@ -10,20 +10,19 @@ daemon and preferably runs infinitely long.
 
 Hardware requirements
 ---------------------
-* Raspberry PI
+* Raspberry Pi model A or B: http://shop.pimoroni.com/
 * dupont cables or cobbler with breadboard (GPIO and I2C)
 * BMP085, BMP180, BMP183: https://www.adafruit.com/products/1900
 * DHT11, DHT22 or DHT2302: https://www.adafruit.com/products/385
 
 Software Requirements
 ---------------------
-* Raspberry PI model A or B
+* Weather Underground developer account (free!): http://www.wunderground.com/weather/api
+* Plotly account (free!): http://plot.ly
 * WiringPI library: git://git.drogon.net/wiringPi
 * bcm2835 library: http://www.airspayce.com/mikem/bcm2835/
 * Adafruit BMP085 I2C library: included!
 * Adafruit DHT GPIO library: https://github.com/adafruit/Adafruit_Python_DHT
-* Plotly account: http://plot.ly
-* Weather Underground developer account: http://www.wunderground.com/weather/api
 * Plotly library: pip install plotly
 * daemon library: pip install daemon
 
