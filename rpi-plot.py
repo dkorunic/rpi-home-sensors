@@ -245,6 +245,7 @@ def backoff_sleep(reset=False, delay=2, max_delay=1024, debug=False):
 def read_rpi_cpu():
     """
     Fetch temperature from CPU0 thermal zone from /proc file and return float.
+
     :return: CPU0 temperature in Celsius
     """
     try:
@@ -290,7 +291,12 @@ def read_weather_underground(debug=False, weather_underground_url=None):
             print >> sys.stderr, 'WARN: Invalid JSON from Weather Undeground API: %s' % e
         return WU_FAKE_TEMP
 
-    temp_c = parsed_json['current_observation']['temp_c']
+    try:
+        temp_c = parsed_json['current_observation']['temp_c']
+    except KeyError, e:
+        if debug:
+            print >> sys.stderr, 'WARN: Invalid JSON from Weather Undeground API: %s' % e
+        return WU_FAKE_TEMP
 
     return temp_c
 
