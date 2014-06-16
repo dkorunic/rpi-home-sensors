@@ -112,7 +112,7 @@ class LedPulse(threading.Thread):
                 RPi.GPIO.output(LED_GPIO, RPi.GPIO.HIGH)
                 time.sleep(LED_BLINK)
                 RPi.GPIO.output(LED_GPIO, RPi.GPIO.LOW)
-                time.sleep(LED_BLINK << 1)
+                time.sleep(LED_BLINK)
 
 
 def signal_handler(recvd_signal, stack_frame):
@@ -305,7 +305,7 @@ def backoff_sleep(reset=False, delay=2, max_delay=1024, debug=False):
             _backoff_delay = delay
 
         if debug:
-            print >> sys.stderr, 'INFO: Backoff initiated in the duration %d seconds.' % _backoff_delay
+            print >> sys.stderr, 'INFO: Backoff initiated for the duration of %d seconds.' % _backoff_delay
         time.sleep(_backoff_delay)
 
         _backoff_delay *= 2
