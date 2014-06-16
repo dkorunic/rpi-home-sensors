@@ -8,11 +8,17 @@
    and outdoor temperature (Weather Underground). It runs as
    a Unix daemon and preferably runs infinitely long.
 
+   If there is a LED available, it will pulse it in the background to indicate its
+   running status.
+
    Hardware requirements:
    - Raspberry Pi model A or B: http://shop.pimoroni.com/
-   - dupont cables or cobbler with breadboard (GPIO and I2C)
+   - dupont cables or cobbler with breadboard (GPIO and I2C):
+     http://www.smart-elex.co.uk/RaspberryPi/RASPBERRY-Pi-GPIO-ACCESSORIES/RPI-Electronics-kit1
    - BMP085, BMP180, BMP183: https://www.adafruit.com/products/1900
    - DHT11, DHT22 or DHT2302: https://www.adafruit.com/products/385
+   - LED
+   - 10kOhm and 330Ohm resistors (for DHT and LED)
 
    Requirements:
    - Weather Underground developer account (free!): http://www.wunderground.com/weather/api
@@ -60,6 +66,8 @@ import os
 import socket
 import json
 import urllib2
+import atexit
+import threading
 
 import Adafruit_DHT
 import Adafruit_BMP085
@@ -67,6 +75,7 @@ import daemon
 import plotly.exceptions
 import plotly.plotly
 import plotly.tools
+import RPi.GPIO
 from plotly.graph_objs import Data, Layout, Figure, Stream, Scatter, YAxis, XAxis, Font
 
 
@@ -74,11 +83,14 @@ DHT_VER = 22  # 11, 22 or 2302
 DHT_GPIO = 4  # any connected GPIO
 BMP085_ADDRESS = 0x77  # I2C address
 BMP085_MODE = 1  # 0 = ULTRALOWPOWER, 1 = STANDARD, 2 = HIRES, 3 = ULTRAHIRES
+LED_GPIO = 27  # any connected GPIO or None if not used
 
 SLEEP_DELAY = 300  # poll delay
 PLOTLY_CHART_NAME = 'Raspberry PI'  # graph title
 MAX_POINTS = 300  # graph data points
-GRAPH_MODE = 'lines'  # lines or lines+markers trace type
+TRACE_MODE = 'lines'  # lines or lines+markers trace type
+GRAPH_MODE = 'append'  # append or overwrite
+LED_BLINK = 5  # seconds for background LED pulse
 
 WU_KEY = None
 WU_STATE = None
@@ -86,6 +98,51 @@ WU_CITY = None
 WU_API_URL = 'http://api.wunderground.com/api/'
 WU_API_QUERY = '/geolookup/conditions/q/'
 WU_FAKE_TEMP = 21.0
+
+
+class LedPulse(threading.Thread):
+    def run(self):
+        """
+        Generic LED pulse thread.
+        """
+        if not LED_GPIO is None:
+            while True:
+                RPi.GPIO.output(LED_GPIO, RPi.GPIO.HIGH)
+                time.sleep(LED_BLINK)
+                RPi.GPIO.output(LED_GPIO, RPi.GPIO.LOW)
+                time.sleep(LED_BLINK << 1)
+
+
+def init_led():
+    """
+    Initialize GPIO pin dedicated for LED blinking.
+    """
+    global SLEEP_DELAY
+    global LED_BLINK
+
+    if not LED_GPIO is None:
+        # initialize GPIO
+        RPi.GPIO.setwarnings(False)
+        RPi.GPIO.setmode(RPi.GPIO.BCM)
+        RPi.GPIO.cleanup()
+        RPi.GPIO.setup(LED_GPIO, RPi.GPIO.OUT)
+
+        # calculate blink delay
+        if SLEEP_DELAY < LED_BLINK:
+            LED_BLINK = SLEEP_DELAY >> 1
+
+        # start LED pulsing thread
+        t = LedPulse()
+        t.start()
+
+
+@atexit.register
+def uninit_led():
+    """
+    Uninitialize all GPIO pins which might have been used.
+    """
+    if not LED_GPIO is None:
+        RPi.GPIO.cleanup()
 
 
 def init_bmp(debug=False):
@@ -130,16 +187,16 @@ def init_plotly(debug=False):
 
     # create Scatter-type structures with appropriate names; don't provide sample data as we'll provide it live in
     # Stream mode
-    my_scatter_cpu = Scatter(x=[], y=[], stream=my_stream_cpu, name='CPU temperature', mode=GRAPH_MODE)
+    my_scatter_cpu = Scatter(x=[], y=[], stream=my_stream_cpu, name='CPU temperature', mode=TRACE_MODE)
     my_scatter_temp = Scatter(x=[], y=[], stream=my_stream_temp,
-                              name='Environment temperature', mode=GRAPH_MODE)
+                              name='Environment temperature', mode=TRACE_MODE)
     my_scatter_humidity = Scatter(x=[], y=[], stream=my_stream_humidity,
-                                  name='Environment humidity', mode=GRAPH_MODE)
+                                  name='Environment humidity', mode=TRACE_MODE)
     my_scatter_pressure = Scatter(x=[], y=[], stream=my_stream_pressure,
                                   name='Barometric pressure', yaxis='y2',
-                                  mode=GRAPH_MODE)
+                                  mode=TRACE_MODE)
     my_scatter_wu = Scatter(x=[], y=[], stream=my_stream_wu, name='Outdoor temperature (Weather Underground)',
-                            mode=GRAPH_MODE)
+                            mode=TRACE_MODE)
 
     # prepare Data structure
     my_data = Data([my_scatter_cpu, my_scatter_temp, my_scatter_humidity,
@@ -158,7 +215,7 @@ def init_plotly(debug=False):
     my_fig = Figure(data=my_data, layout=my_layout)
 
     # overwrite existing data on creating the new figure
-    plotly.plotly.plot(my_fig, filename=PLOTLY_CHART_NAME, auto_open=False, fileopt='overwrite')
+    plotly.plotly.plot(my_fig, filename=PLOTLY_CHART_NAME, auto_open=False, fileopt=GRAPH_MODE)
 
     # initialize Stream structures with different stream ids, so that each has its own trace
     s_cpu = plotly.plotly.Stream(token_cpu)
@@ -308,6 +365,7 @@ def plot_data(debug=False):
 
     :param debug: Control of verbose sensor readouts
     """
+    init_led()
     bmp = init_bmp(debug)
     s_cpu, s_humidity, s_pressure, s_temp, s_wu = init_plotly(debug)
     wu_url = init_weather_underground(debug)
@@ -394,6 +452,9 @@ def plot_data(debug=False):
 
 
 def run():
+    """
+    Generic main() block.
+    """
     my_daemon = True
     my_debug = False
 
