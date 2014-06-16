@@ -20,7 +20,7 @@
    - LED
    - 10kOhm and 330Ohm resistors (for DHT and LED)
 
-   Requirements:
+   Software Requirements:
    - Weather Underground developer account (free!): http://www.wunderground.com/weather/api
    - Plotly account (free!): http://plot.ly
    - WiringPI library: git://git.drogon.net/wiringPi

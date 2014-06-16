@@ -3,17 +3,24 @@ README
 
 This is a Raspberry Pi temperature graphing PoC through Plotly.
 
-Plots CPU temperature (directly from RPI), environment temperature
-(BMP085), environment barometric pressure (BMP085), environment humidity
-(DHT22) and outdoor temperature (Weather Underground). It runs as a Unix
-daemon and preferably runs infinitely long.
+Plots CPU temperature (directly from RPI), environment temperature (BMP085),
+environment barometric pressure (BMP085), environment humidity (DHT22).
+and outdoor temperature (Weather Underground). It runs as
+a Unix daemon and preferably runs infinitely long.
+
+If there is a LED available, it will pulse it in the background to indicate its
+running status.
+
 
 Hardware requirements
 ---------------------
 * Raspberry Pi model A or B: http://shop.pimoroni.com/
-* dupont cables or cobbler with breadboard (GPIO and I2C)
+* dupont cables or cobbler with breadboard (GPIO and I2C):
+  http://www.smart-elex.co.uk/RaspberryPi/RASPBERRY-Pi-GPIO-ACCESSORIES/RPI-Electronics-kit1
 * BMP085, BMP180, BMP183: https://www.adafruit.com/products/1900
 * DHT11, DHT22 or DHT2302: https://www.adafruit.com/products/385
+* LED
+* 10kOhm and 330Ohm resistors (for DHT and LED)
 
 Software Requirements
 ---------------------
@@ -43,6 +50,7 @@ Important notes
 Snapshot
 --------
 ![/rpi-plot.png](/rpi-plot.png)
+![/rpi-board.png](/rpi-board.png)
 
 Copyright
 ---------
