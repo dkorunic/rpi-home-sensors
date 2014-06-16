@@ -89,8 +89,8 @@ LED_GPIO = 27  # any connected GPIO or None if not used
 SLEEP_DELAY = 300  # poll delay
 PLOTLY_CHART_NAME = 'Raspberry PI'  # graph title
 MAX_POINTS = 300  # graph data points
-TRACE_MODE = 'lines'  # lines or lines+markers trace type
-GRAPH_MODE = 'append'  # append or overwrite
+TRACE_MODE = 'lines'  # lines or lines+markers trace type (recommended lines for a lot of data points)
+GRAPH_MODE = 'overwrite'  # append or overwrite previous traces (recommended overwrite)
 LED_BLINK = 5  # seconds for background LED pulse
 
 WU_KEY = None
