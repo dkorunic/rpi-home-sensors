@@ -68,6 +68,7 @@ import json
 import urllib2
 import atexit
 import threading
+import signal
 
 import Adafruit_DHT
 import Adafruit_BMP085
@@ -100,6 +101,7 @@ WU_API_QUERY = '/geolookup/conditions/q/'
 WU_FAKE_TEMP = 21.0
 
 
+# noinspection PyDocstring
 class LedPulse(threading.Thread):
     def run(self):
         """
@@ -111,6 +113,17 @@ class LedPulse(threading.Thread):
                 time.sleep(LED_BLINK)
                 RPi.GPIO.output(LED_GPIO, RPi.GPIO.LOW)
                 time.sleep(LED_BLINK << 1)
+
+
+def signal_handler(recvd_signal, stack_frame):
+    """
+    Generic signal handler routine.
+
+    :param recvd_signal: received signal
+    :param stack_frame:  current stack frame
+    """
+    print >> sys.stderr, 'WARN: Got Ctrl-C from console. Exiting...'
+    sys.exit(0)
 
 
 def init_led():
@@ -131,8 +144,9 @@ def init_led():
         if SLEEP_DELAY < LED_BLINK:
             LED_BLINK = SLEEP_DELAY >> 1
 
-        # start LED pulsing thread
+        # start LED pulsing thread as daemon (will exit automatically)
         t = LedPulse()
+        t.daemon = True
         t.start()
 
 
@@ -467,6 +481,9 @@ def run():
     if os.geteuid() != 0:
         print >> sys.stderr, 'ERROR: You need root to be able to read GPIO, I2C and CPU thermal zones.'
         sys.exit(1)
+
+    # setup signal handler
+    signal.signal(signal.SIGINT, signal_handler)
 
     # preferably daemonize
     if my_daemon:
