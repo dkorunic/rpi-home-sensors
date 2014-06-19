@@ -22,6 +22,7 @@
 
    Software Requirements:
    - Weather Underground developer account (free!): http://www.wunderground.com/weather/api
+   - Google docs account
    - Plotly account (free!): http://plot.ly
    - WiringPI library: git://git.drogon.net/wiringPi
    - bcm2835 library: http://www.airspayce.com/mikem/bcm2835/
@@ -29,6 +30,7 @@
    - Adafruit DHT GPIO library: https://github.com/adafruit/Adafruit_Python_DHT
    - Plotly library: pip install plotly
    - daemon library: pip install daemon
+   - gspread library: pip install gspread
 
    Important notes:
    - Raspberry PI model A users need to edit Adafruit_I2C.py and do the following change:
@@ -71,6 +73,7 @@ import threading
 import signal
 import logging
 
+import gspread
 import Adafruit_DHT
 import Adafruit_BMP085
 import daemon
@@ -100,6 +103,11 @@ WU_CITY = None
 WU_API_URL = 'http://api.wunderground.com/api/'
 WU_API_QUERY = '/geolookup/conditions/q/'
 WU_FAKE_TEMP = 21.0
+
+GDOCS_EMAIL = None
+GDOCS_PASSWORD = None
+GDOCS_SHEET = None
+GDOCS_SHEET_PATTERN = '%Y-%B'  # Year-Month pattern in naming sheets (one sheet per each month)
 
 
 # noinspection PyDocstring
@@ -376,6 +384,74 @@ def read_weather_underground(debug=False, weather_underground_url=None):
     return temp_c
 
 
+def login_gdocs():
+    """
+    Login to Google Docs, open SpreadSheet and open a specific worksheet matching the current year
+    and month preferably.
+
+    :return: Google Docs SpreadSheet active worksheet object
+    """
+    if GDOCS_EMAIL is None or GDOCS_PASSWORD is None:
+        logging.info('Missing Google Docs authentication information. Continuing without.')
+        return None
+
+    if GDOCS_SHEET is None:
+        logging.info('Missing Google Docs sheet information. Continuing without.')
+        return None
+
+    try:
+        g_conn = gspread.login(GDOCS_EMAIL, GDOCS_PASSWORD)
+    except gspread.GSpreadException, e:
+        logging.error('Problem with Google Docs authentication: %s' % e)
+        return None
+
+    try:
+        gdc = g_conn.open(GDOCS_SHEET)
+    except gspread.SpreadsheetNotFound, e:
+        logging.error('No such spreadsheet on Google Docs account: %s. Continuing without.' % e)
+        return None
+
+    sheet_pattern = datetime.datetime.now().strftime(GDOCS_SHEET_PATTERN)
+    try:
+        gdc_worksheet = gdc.worksheet(sheet_pattern)
+    except gspread.WorksheetNotFound, e:
+        logging.info('No such worksheet on Google Docs account: %s. Will create.' % e)
+
+        # XXX: hardcoded number of columns for now and hardcoded descriptions
+        try:
+            gdc_worksheet = gdc.add_worksheet(title=sheet_pattern, rows=1, cols=5)
+
+            # date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp)
+            gdc_worksheet.append_row((
+                'Date/Time', 'CPU Temperature [C]', 'BMP Temperature [C]', 'DHT Humidity [%]', 'BMP Pressure [hPa]',
+                'WU Temperature [C]'))
+        except gspread.GSpreadException, e:
+            logging.error('Unable to create new Google Docs worksheet: %e. Continuing without.' % e)
+            return None
+
+    return gdc_worksheet
+
+
+def write_gdocs(date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp):
+    """
+    Write a row to Google Docs SpreadSheet active worksheet
+
+    :param date_stamp: date stamp readout
+    :param cpu_temp: CPU temperature readout
+    :param bmp_temp: BMP temperature readout
+    :param dht_hum: DHT humidity readout
+    :param bmp_pres: BMP pressure readout
+    :param wu_temp: Weather Underground temperature readout
+    """
+    gdc_worksheet = login_gdocs()
+
+    if gdc_worksheet is not None:
+        try:
+            gdc_worksheet.append_row((date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp))
+        except gspread.GSpreadException, e:
+            logging.error('Unable to add new row to Google Docs worksheet: %s' % e)
+
+
 def plot_data(debug=False):
     """
     Gather all data from DHT and BMP sensors and graph on Plotly. Tries to be resilient to most intermittent
@@ -437,8 +513,11 @@ def plot_data(debug=False):
                                'WU Temperature: %.2f ºC' % (cpu_temp, dht_hum, dht_temp, bmp_temp, bmp_pres, wu_temp)
                 logging.debug(gathered_out)
 
+                # write to Google Docs
+                write_gdocs(date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp)
+
+                # push data to Plotly
                 try:
-                    # push data to Plotly
                     s_cpu.write(dict(x=date_stamp, y=cpu_temp))
                     s_temp.write(dict(x=date_stamp, y=bmp_temp))
                     s_humidity.write(dict(x=date_stamp, y=dht_hum))
