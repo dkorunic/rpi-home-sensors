@@ -69,6 +69,7 @@ import urllib2
 import atexit
 import threading
 import signal
+import logging
 
 import Adafruit_DHT
 import Adafruit_BMP085
@@ -86,7 +87,7 @@ BMP085_ADDRESS = 0x77  # I2C address
 BMP085_MODE = 1  # 0 = ULTRALOWPOWER, 1 = STANDARD, 2 = HIRES, 3 = ULTRAHIRES
 LED_GPIO = 27  # any connected GPIO or None if not used
 
-SLEEP_DELAY = 300  # poll delay
+SLEEP_DELAY = 300  # poll delay (never set this to less than 2 seconds!)
 PLOTLY_CHART_NAME = 'Raspberry PI'  # graph title
 MAX_POINTS = 300  # graph data points
 TRACE_MODE = 'lines'  # lines or lines+markers trace type (recommended lines for a lot of data points)
@@ -122,8 +123,20 @@ def signal_handler(recvd_signal, stack_frame):
     :param recvd_signal: received signal
     :param stack_frame:  current stack frame
     """
-    print >> sys.stderr, 'WARN: Got Ctrl-C from console. Exiting...'
+    logging.warning('Got Ctrl-C from console. Exiting...')
     sys.exit(0)
+
+
+def init_logging(debug=False):
+    """
+    Generic logging initializing routine.
+
+    :param debug: allow for verbose debug messages or not
+    """
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
 
 def init_led():
@@ -170,8 +183,7 @@ def init_bmp(debug=False):
 
         bmp = Adafruit_BMP085.BMP085(BMP085_ADDRESS, BMP085_MODE)
     except IOError, e:
-        if debug:
-            print >> sys.stderr, 'ERROR: I2C BMP085 reading failure: %s' % e
+        logging.error('I2C BMP085 reading failure: %s' % e)
         sys.exit(1)
 
     return bmp
@@ -269,20 +281,16 @@ def init_weather_underground(debug=False):
                 if 'wu_state' in parsed_json:
                     WU_STATE = parsed_json['wu_state']
             except ValueError, e:
-                if debug:
-                    print >> sys.stderr, 'WARN: Invalid Weather Underground JSON configuration in %s: %s' % (wu_file, e)
+                logging.warning('Invalid Weather Underground JSON configuration in %s: %s' % (wu_file, e))
                 pass
         finally:
             f.close()
     except IOError, e:
-        if debug:
-            print >> sys.stderr, 'WARN: Could not open/read Weather Undeground configuration in %s: %s' % (wu_file, e)
-        pass
+        logging.warning('Could not open/read Weather Undeground configuration in %s: %s' % (wu_file, e))
 
     if WU_CITY is None or WU_STATE is None or WU_KEY is None:
-        if debug:
-            print >> sys.stderr, 'WARN: Weather Underground unconfigured. Simulating.'
-            return None
+        logging.warning('Weather Underground unconfigured. Simulating.')
+        return None
     else:
         return ''.join([WU_API_URL, WU_KEY, WU_API_QUERY, WU_STATE, '/', WU_CITY, '.json'])
 
@@ -304,8 +312,7 @@ def backoff_sleep(reset=False, delay=2, max_delay=1024, debug=False):
         if not '_backoff_delay' in globals() or _backoff_delay is None:
             _backoff_delay = delay
 
-        if debug:
-            print >> sys.stderr, 'INFO: Backoff initiated for the duration of %d seconds.' % _backoff_delay
+        logging.info('Backoff initiated for the duration of %d seconds.' % _backoff_delay)
         time.sleep(_backoff_delay)
 
         _backoff_delay *= 2
@@ -351,22 +358,19 @@ def read_weather_underground(debug=False, weather_underground_url=None):
         finally:
             f.close()
     except urllib2.URLError, e:
-        if debug:
-            print >> sys.stderr, 'WARN: Could not communicate with Weather Underground API: %s' % e
+        logging.error('Could not communicate with Weather Underground API: %s' % e)
         return WU_FAKE_TEMP
 
     try:
         parsed_json = json.loads(json_string)
     except ValueError, e:
-        if debug:
-            print >> sys.stderr, 'WARN: Invalid JSON from Weather Undeground API: %s' % e
+        logging.warning('Invalid JSON from Weather Undeground API: %s' % e)
         return WU_FAKE_TEMP
 
     try:
         temp_c = parsed_json['current_observation']['temp_c']
     except KeyError, e:
-        if debug:
-            print >> sys.stderr, 'WARN: Invalid JSON from Weather Undeground API: %s' % e
+        logging.warning('Invalid JSON from Weather Undeground API: %s' % e)
         return WU_FAKE_TEMP
 
     return temp_c
@@ -392,8 +396,7 @@ def plot_data(debug=False):
             s_pressure.open()
             s_wu.open()
         except socket.error, e:
-            if debug:
-                print >> sys.stderr, 'WARN: Socket error connecting to Plotly: %s. Retrying...' % e
+            logging.error('Socket error connecting to Plotly: %s. Retrying...' % e)
             backoff_sleep(delay=60, debug=debug)
 
         while True:
@@ -402,16 +405,14 @@ def plot_data(debug=False):
                 try:
                     cpu_temp = read_rpi_cpu()
                 except RuntimeError, e:
-                    if debug:
-                        print >> sys.stderr, 'ERROR: CPU0 thermal zone reading failure: %s' % e
+                    logging.error('CPU0 thermal zone reading failure: %s' % e)
                     sys.exit(1)
 
                 # pull DHT temperature and humidity
                 try:
                     dht_hum, dht_temp = Adafruit_DHT.read_retry(DHT_VER, DHT_GPIO)
                 except RuntimeError, e:
-                    if debug:
-                        print >> sys.stderr, 'ERROR: GPIO DHT reading failure: %s' % e
+                    logging.error('GPIO DHT reading failure: %s' % e)
                     sys.exit(1)
 
                 # pull BMP temperature and pressure
@@ -419,8 +420,7 @@ def plot_data(debug=False):
                     bmp_temp = bmp.readTemperature()
                     bmp_pres = bmp.readPressure() / 100.0
                 except IOError, e:
-                    if debug:
-                        print >> sys.stderr, 'ERROR: I2C BMP085 reading failure: %s' % e
+                    logging.error('I2C BMP085 reading failure: %s' % e)
                     sys.exit(1)
 
                 # pull Weather Underground outdoor temperature
@@ -428,15 +428,14 @@ def plot_data(debug=False):
 
                 date_stamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
-                if debug:
-                    print 'Timestamp: %s' % date_stamp
-                    print 'CPU Temperature: %.2f ºC' % cpu_temp
-                    print 'Weather Underground Temperature: %.2f ºC' % wu_temp
-                    print 'DHT Humidity: %.2f %%' % dht_hum
-                    print 'DHT Temperature: %.2f ºC' % dht_temp
-                    print 'BMP Temperature: %.2f ºC' % bmp_temp
-                    print 'BMP Pressure: %.2f hPa' % bmp_pres
-                    print 40 * '-'
+                # gather all outputs into a single string
+                gathered_out = 'CPU Temperature: %.2f ºC | ' \
+                               'DHT Humidity: %.2f %% | ' \
+                               'DHT Temperature: %.2f ºC | ' \
+                               'BMP Temperature: %.2f ºC | ' \
+                               'BMP Pressure: %.2f hPa | ' \
+                               'WU Temperature: %.2f ºC' % (cpu_temp, dht_hum, dht_temp, bmp_temp, bmp_pres, wu_temp)
+                logging.debug(gathered_out)
 
                 try:
                     # push data to Plotly
@@ -449,8 +448,7 @@ def plot_data(debug=False):
                     backoff_sleep(reset=True)
                     time.sleep(SLEEP_DELAY)
                 except (IOError, socket.error, plotly.exceptions.PlotlyError):
-                    if debug:
-                        print >> sys.stderr, 'WARN: Socket error writing to Plotly. Retrying...'
+                    logging.error('Socket error writing to Plotly. Retrying...')
                     backoff_sleep(delay=60, debug=debug)
                     break
 
@@ -478,8 +476,10 @@ def run():
         my_debug = True
         my_daemon = False
 
+    init_logging(my_debug)
+
     if os.geteuid() != 0:
-        print >> sys.stderr, 'ERROR: You need root to be able to read GPIO, I2C and CPU thermal zones.'
+        logging.error('You need root to be able to read GPIO, I2C and CPU thermal zones.')
         sys.exit(1)
 
     # setup signal handler
