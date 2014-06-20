@@ -453,7 +453,7 @@ def login_gdocs():
 
 def write_gdocs(date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp):
     """
-    Write a row to Google Docs Spreadsheet active worksheet
+    Write a row with sensor data to Google Docs Spreadsheet active worksheet.
 
     :param date_stamp: date stamp readout
     :param cpu_temp: CPU temperature readout
@@ -478,12 +478,12 @@ def publish_data(debug, s_cpu, s_humidity, s_pressure, s_temp, s_wu):
     """
     Publish all gathered data to PlotLy and Google Docs Spreadsheet.
 
-    :param debug:
-    :param s_cpu:
-    :param s_humidity:
-    :param s_pressure:
-    :param s_temp:
-    :param s_wu:
+    :param debug: verbose logging
+    :param s_cpu: Plotly stream for CPU temperature readout
+    :param s_humidity: Plotly stream for DHT humidity readout
+    :param s_pressure: Plotly stream for BMP pressure readout
+    :param s_temp: Plotly stream for BMP temperature readout
+    :param s_wu: Plotly strem for Weather Underground temperature readout
     """
     global DATA_QUEUE
 
