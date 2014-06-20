@@ -13,6 +13,10 @@ daemon and preferably runs infinitely long.
 If there is a LED available, it will pulse it in the background to indicate its
 running status.
 
+Snapshot
+--------
+![/rpi-plot.png](/rpi-plot.png)
+![/rpi-board.png](/rpi-board.png)
 
 Hardware requirements
 ---------------------
@@ -48,13 +52,34 @@ Important notes
 * You can store Weather Underground configuration in /root/.weather_underground.rc:
 
 ```
-   {"wu_city": "Zagreb", "wu_state": "Croatia", "wu_key": "XXXX"}
+    {"wu_city": "Zagreb", "wu_state": "Croatia", "wu_key": "XXXX"}
 ```
 
-Snapshot
---------
-![/rpi-plot.png](/rpi-plot.png)
-![/rpi-board.png](/rpi-board.png)
+Monitoring
+----------
+Integration with Supervisor http://supervisord.org/ process control system
+is rather trivial. What is needed is a corresponding daemon configuration
+in /etc/supervisor/conf.d/rpi-plot.conf if the code has been placed at
+/home/pi/work/rpi-home-sensors:
+
+```
+    [program:rpi-plot]
+    command=/home/pi/work/rpi-home-sensors/rpi-plot.py nodaemon
+    stopsignal=INT
+    autostart=true
+    autorestart=true
+    redirect_stderr=true
+    stdout_logfile=/var/log/rpi-plot.log
+    environment=HOME="/root"
+```
+
+Then the simple sequence of the following commands is enough to kickstart
+the process:
+
+```
+    supervisorctl update
+    supervisorctl status
+```
 
 Copyright
 ---------
