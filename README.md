@@ -35,6 +35,7 @@ Software Requirements
 * Adafruit DHT GPIO library: https://github.com/adafruit/Adafruit_Python_DHT
 * Plotly library: pip install plotly
 * daemon library: pip install daemon
+* gspread library: pip install gspread
 
 Important notes
 ---------------
