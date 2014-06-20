@@ -1,12 +1,14 @@
 README
 ======
 
-This is a Raspberry Pi temperature graphing PoC through Plotly.
+This is a Raspberry Pi temperature graphing PoC through Plotly (usually up
+to 200 points drawn) and persistant storage through Google Docs
+(Spreadsheet).
 
-Plots CPU temperature (directly from RPI), environment temperature (BMP085),
-environment barometric pressure (BMP085), environment humidity (DHT22).
-and outdoor temperature (Weather Underground). It runs as
-a Unix daemon and preferably runs infinitely long.
+Plots CPU temperature (directly from RPI), environment temperature
+(BMP085), environment barometric pressure (BMP085), environment humidity
+(DHT22).  and outdoor temperature (Weather Underground). It runs as a Unix
+daemon and preferably runs infinitely long.
 
 If there is a LED available, it will pulse it in the background to indicate its
 running status.
@@ -26,6 +28,7 @@ Software Requirements
 ---------------------
 * Weather Underground developer account (free!): http://www.wunderground.com/weather/api
 * Plotly account (free!): http://plot.ly
+* Google Docs account (optional)
 * WiringPI library: git://git.drogon.net/wiringPi
 * bcm2835 library: http://www.airspayce.com/mikem/bcm2835/
 * Adafruit BMP085 I2C library: included!
