@@ -658,9 +658,9 @@ def run():
     # preferably daemonize
     if my_daemon:
         with daemon.DaemonContext():
-            gather_data(my_debug)
+            gather_data()
     else:
-        gather_data(my_debug)
+        gather_data()
 
 
 if __name__ == '__main__':
