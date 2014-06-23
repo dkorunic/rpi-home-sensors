@@ -428,7 +428,7 @@ def login_gdocs():
     except gspread.SpreadsheetNotFound, e:
         logger.error('No such spreadsheet on Google Docs account: %s. Continuing without.' % e)
         return None
-    except socket.gaierror, e:
+    except IOError, e:
         logger.error('Could not connect to Google Docs account: %s. Continuing without.' % e)
         return None
 
