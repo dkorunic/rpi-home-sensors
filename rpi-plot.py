@@ -428,6 +428,9 @@ def login_gdocs():
     except gspread.SpreadsheetNotFound, e:
         logger.error('No such spreadsheet on Google Docs account: %s. Continuing without.' % e)
         return None
+    except socket.gaierror, e:
+        logger.error('Could not connect to Google Docs account: %s. Continuing without.' % e)
+        return None
 
     sheet_pattern = datetime.datetime.now().strftime(GDOCS_SHEET_PATTERN)
     try:
@@ -500,6 +503,7 @@ def publish_data(debug, s_cpu, s_humidity, s_pressure, s_temp, s_wu):
         except socket.error, e:
             logger.error('Socket error connecting to Plotly: %s. Retrying...' % e)
             backoff_sleep(delay=60, debug=debug)
+            continue
 
         while True:
             try:
@@ -518,8 +522,8 @@ def publish_data(debug, s_cpu, s_humidity, s_pressure, s_temp, s_wu):
 
                     backoff_sleep(reset=True)
                     logger.debug('Successfully published data to PlotLy.')
-                except (IOError, socket.error, plotly.exceptions.PlotlyError):
-                    logger.error('Socket error writing to Plotly. Retrying...')
+                except (IOError, socket.error, plotly.exceptions.PlotlyError), e:
+                    logger.error('Socket error writing to Plotly: %s. Retrying...' % e)
                     DATA_QUEUE.put((date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp))
                     backoff_sleep(delay=60, debug=debug)
                     break
