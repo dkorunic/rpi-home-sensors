@@ -55,6 +55,14 @@ Important notes
     {"wu_city": "Zagreb", "wu_state": "Croatia", "wu_key": "XXXX"}
 ```
 
+* Plotly configuration needs to be stored in /root/.plotly/.credentials
+
+* You can store Google Docs configuration in /root/.google_docs.rc:
+
+```
+    {"gdocs_email": "somebody@gmail.com", "gdocs_password": "secret password", "gdocs_sheet": "somesheet"}
+```
+
 Monitoring
 ----------
 Integration with Supervisor http://supervisord.org/ process control system
