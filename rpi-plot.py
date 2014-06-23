@@ -44,6 +44,10 @@
    {"wu_city": "Zagreb", "wu_state": "Croatia", "wu_key": "XXXX"}
 
    - Plotly configuration needs to be stored in /root/.plotly/.credentials
+
+   - You can store Google Docs configuration in /root/.google_docs.rc
+
+   {"gdocs_email": "somebody@gmail.com", "gdocs_password": "secret password", "gdocs_sheet": "somesheet"}
 """
 
 __copyright__ = """Copyright (C) 2014  Dinko Korunic <dinko.korunic@gmail.com>
@@ -185,11 +189,10 @@ def uninit_led():
         RPi.GPIO.cleanup()
 
 
-def init_bmp(debug=False):
+def init_bmp():
     """
     Initializes BMP085, BMP180 or BMP183 devices.
 
-    :param debug: Allows for debugging I2C problems
     :return: Returns initialized BMP085 device structure
     """
     logger = logging.getLogger(sys._getframe().f_code.co_name)
@@ -204,11 +207,10 @@ def init_bmp(debug=False):
     return bmp
 
 
-def init_plotly(debug=False):
+def init_plotly():
     """
     Prepares authenticate tokens for each trace, prepares layout and streams with corresponding scatter graph traces.
 
-    :param debug: Allows debugging Plotly API errors
     :return: Returns initialized stream IDs for each trace
     """
     logger = logging.getLogger(sys._getframe().f_code.co_name)
@@ -274,12 +276,47 @@ def init_plotly(debug=False):
     return s_cpu, s_humidity, s_pressure, s_temp, s_wu
 
 
-def init_weather_underground(debug=False):
+def init_gdocs():
+    """
+    Initialize Google Docs globals from $HOME/.google_docs.rc JSON if it exists.
+    """
+    global GDOCS_EMAIL
+    global GDOCS_PASSWORD
+    global GDOCS_SHEET
+
+    logger = logging.getLogger(sys._getframe().f_code.co_name)
+
+    # XXX: use argument parser for this
+    gdocs_file = ''.join([os.environ['HOME'], os.sep, '.google_docs.rc'])
+
+    try:
+        f = open(gdocs_file)
+
+        try:
+            json_string = f.read()
+            try:
+                parsed_json = json.loads(json_string)
+
+                if 'gdocs_email' in parsed_json:
+                    GDOCS_EMAIL = parsed_json['gdocs_email']
+                if 'gdocs_password' in parsed_json:
+                    GDOCS_PASSWORD = parsed_json['gdocs_password']
+                if 'gdocs_sheet' in parsed_json:
+                    GDOCS_SHEET = parsed_json['gdocs_sheet']
+            except ValueError, e:
+                logger.warning('Invalid Google Docs JSON configuration in %s: %s' % (gdocs_file, e))
+                pass
+        finally:
+            f.close()
+    except IOError, e:
+        logger.warning('Could not open/read Google Docs configuration in %s: %s' % (gdocs_file, e))
+
+
+def init_weather_underground():
     """
     Initialize Weather Undeground API from either globals or $HOME/.weather_underground.rc JSON with later one
     being preferred.
 
-    :param debug: Allows Weather Underground debugging
     :return: returns full Weather Underground API URL
     """
     global WU_KEY
@@ -320,14 +357,13 @@ def init_weather_underground(debug=False):
         return ''.join([WU_API_URL, WU_KEY, WU_API_QUERY, WU_STATE, '/', WU_CITY, '.json'])
 
 
-def backoff_sleep(reset=False, delay=2, max_delay=1024, debug=False):
+def backoff_sleep(reset=False, delay=2, max_delay=1024):
     """
     Sleep function with exponential backoff with deterministic maximum and option to reset delay to default.
 
     :param reset: Resets the next run to default delay without backoff
     :param delay: Initial backoff delay
     :param max_delay: Maximal backoff after which delay becomes constant
-    :param debug: In debug mode it displays the amount of backoff seconds done
     """
     global _backoff_delay
 
@@ -366,11 +402,10 @@ def read_rpi_cpu():
     return cpu_temp
 
 
-def read_weather_underground(debug=False, weather_underground_url=None):
+def read_weather_underground(weather_underground_url=None):
     """
     Poll Weather Underground API for current outdoor temperature in Celsius.
 
-    :param debug: Allows debugging Weather Underground API errors
     :param weather_underground_url: Full Weather Underground API url for current city, state and with proper API key
     :return: temperature in Celsius, real or fake temperature
     """
@@ -477,11 +512,10 @@ def write_gdocs(date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp):
             logger.error('Unable to add new row to Google Docs worksheet: %s' % e)
 
 
-def publish_data(debug, s_cpu, s_humidity, s_pressure, s_temp, s_wu):
+def publish_data(s_cpu, s_humidity, s_pressure, s_temp, s_wu):
     """
     Publish all gathered data to PlotLy and Google Docs Spreadsheet.
 
-    :param debug: verbose logging
     :param s_cpu: Plotly stream for CPU temperature readout
     :param s_humidity: Plotly stream for DHT humidity readout
     :param s_pressure: Plotly stream for BMP pressure readout
@@ -502,7 +536,7 @@ def publish_data(debug, s_cpu, s_humidity, s_pressure, s_temp, s_wu):
             logger.debug('Successfully opened stream to PlotLy.')
         except socket.error, e:
             logger.error('Socket error connecting to Plotly: %s. Retrying...' % e)
-            backoff_sleep(delay=60, debug=debug)
+            backoff_sleep(delay=60)
             continue
 
         while True:
@@ -525,7 +559,7 @@ def publish_data(debug, s_cpu, s_humidity, s_pressure, s_temp, s_wu):
                 except (IOError, socket.error, plotly.exceptions.PlotlyError), e:
                     logger.error('Socket error writing to Plotly: %s. Retrying...' % e)
                     DATA_QUEUE.put((date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp))
-                    backoff_sleep(delay=60, debug=debug)
+                    backoff_sleep(delay=60)
                     break
             finally:
                 try:
@@ -538,21 +572,20 @@ def publish_data(debug, s_cpu, s_humidity, s_pressure, s_temp, s_wu):
                     pass
 
 
-def gather_data(debug=False):
+def gather_data():
     """
     Gather all data from DHT and BMP sensors and graph on Plotly. Tries to be resilient to most intermittent
     errors.
-
-    :param debug: Control of verbose sensor readouts
     """
     logger = logging.getLogger(sys._getframe().f_code.co_name)
 
     init_led()
-    bmp = init_bmp(debug)
-    wu_url = init_weather_underground(debug)
-    s_cpu, s_humidity, s_pressure, s_temp, s_wu = init_plotly(debug)
+    bmp = init_bmp()
+    wu_url = init_weather_underground()
+    s_cpu, s_humidity, s_pressure, s_temp, s_wu = init_plotly()
+    init_gdocs()
 
-    t = threading.Thread(target=publish_data, args=(debug, s_cpu, s_humidity, s_pressure, s_temp, s_wu))
+    t = threading.Thread(target=publish_data, args=(s_cpu, s_humidity, s_pressure, s_temp, s_wu))
     t.daemon = True
     t.start()
 
@@ -580,7 +613,7 @@ def gather_data(debug=False):
             sys.exit(1)
 
         # pull Weather Underground outdoor temperature
-        wu_temp = read_weather_underground(debug=debug, weather_underground_url=wu_url)
+        wu_temp = read_weather_underground(weather_underground_url=wu_url)
 
         date_stamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
 
