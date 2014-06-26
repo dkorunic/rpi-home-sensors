@@ -457,14 +457,17 @@ def login_gdocs():
     except gspread.GSpreadException, e:
         logger.error('Problem with Google Docs authentication: %s' % e)
         return None
+    except (socket.error, socket.gaierror, socket.timeout), e:
+        logger.error('Problem contacting Google Docs: %s. Continuing without.' % e)
+        return None
 
     try:
         gdc = g_conn.open(GDOCS_SHEET)
     except gspread.SpreadsheetNotFound, e:
         logger.error('No such spreadsheet on Google Docs account: %s. Continuing without.' % e)
         return None
-    except IOError, e:
-        logger.error('Could not connect to Google Docs account: %s. Continuing without.' % e)
+    except (socket.error, socket.gaierror, socket.timeout), e:
+        logger.error('Problem contacting Google Docs: %s. Continuing without.' % e)
         return None
 
     sheet_pattern = datetime.datetime.now().strftime(GDOCS_SHEET_PATTERN)
@@ -510,6 +513,8 @@ def write_gdocs(date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp):
             logger.debug('Successfully published data to Google Docs.')
         except gspread.GSpreadException, e:
             logger.error('Unable to add new row to Google Docs worksheet: %s' % e)
+        except AttributeError, e:
+            logger.error('Unable to add new row (invalid data) to Google Docs worksheet: %s' % e)
 
 
 def publish_data(s_cpu, s_humidity, s_pressure, s_temp, s_wu):
