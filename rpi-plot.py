@@ -151,9 +151,9 @@ def init_logging(debug=False):
     :param debug: allow for verbose debug messages or not
     """
     if debug:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG, format='%(asctime)-15s %(message)s')
     else:
-        logging.basicConfig(level=logging.WARNING)
+        logging.basicConfig(level=logging.WARNING, format='%(asctime)-15s %(message)s')
 
 
 def init_led():
