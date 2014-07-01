@@ -488,7 +488,7 @@ def login_gdocs():
         except gspread.GSpreadException, e:
             logger.error('Unable to create new Google Docs worksheet: %e. Continuing without.' % e)
             return None
-    except (gspread.GSpreadException, gspread.HTTPError), e:
+    except (gspread.GSpreadException, urllib2.HTTPError), e:
         logger.error('Could not open worksheet on Google Docs account: %s' % e)
         return None
     except Exception, e:
@@ -517,7 +517,7 @@ def write_gdocs(date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp):
         try:
             gdc_worksheet.append_row((date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp))
             logger.debug('Successfully published data to Google Docs.')
-        except (gspread.GSpreadException, gspread.HTTPError), e:
+        except (gspread.GSpreadException, urllib2.HTTPError), e:
             logger.error('Unable to add new row to Google Docs worksheet: %s' % e)
         except AttributeError, e:
             logger.error('Unable to add new row (invalid data) to Google Docs worksheet: %s' % e)
