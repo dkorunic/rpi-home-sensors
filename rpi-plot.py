@@ -140,7 +140,7 @@ def signal_handler(recvd_signal, stack_frame):
     :param stack_frame:  current stack frame
     """
     logger = logging.getLogger(sys._getframe().f_code.co_name)
-    logger.warning('Got Ctrl-C from console. Exiting...')
+    logger.warning('Got termination signal. Exiting...')
     sys.exit(0)
 
 
@@ -160,7 +160,6 @@ def init_led():
     """
     Initialize GPIO pin dedicated for LED blinking.
     """
-    global SLEEP_DELAY
     global LED_BLINK
 
     if not LED_GPIO is None:
@@ -424,6 +423,9 @@ def read_weather_underground(weather_underground_url=None):
     except urllib2.URLError, e:
         logger.error('Could not communicate with Weather Underground API: %s' % e)
         return WU_FAKE_TEMP
+    except Exception, e:
+        logger.exception('Unable to contact Weather Underground (unexpected situation): %s' % e)
+        return None
 
     try:
         parsed_json = json.loads(json_string)
@@ -435,6 +437,12 @@ def read_weather_underground(weather_underground_url=None):
         temp_c = parsed_json['current_observation']['temp_c']
     except KeyError, e:
         logger.warning('Invalid JSON from Weather Undeground API: %s' % e)
+        return WU_FAKE_TEMP
+
+    if isinstance(temp_c, int):
+        temp_c = float(temp_c)
+    elif not isinstance(temp_c, float):
+        logger.warning('Received non-float temperature from Weather Underground: %s' % str(temp_c))
         return WU_FAKE_TEMP
 
     return temp_c
@@ -469,6 +477,9 @@ def login_gdocs():
     except (socket.error, socket.gaierror, socket.timeout), e:
         logger.error('Problem contacting Google Docs: %s. Continuing without.' % e)
         return None
+    except Exception, e:
+        logger.exception('Unable to contact Google Docs (unexpected situation): %s' % e)
+        return None
 
     sheet_pattern = datetime.datetime.now().strftime(GDOCS_SHEET_PATTERN)
     try:
@@ -492,7 +503,7 @@ def login_gdocs():
         logger.error('Could not open worksheet on Google Docs account: %s' % e)
         return None
     except Exception, e:
-        logger.error('Unable to open worksheet on Google Docs (unexpected situation): %s' % e)
+        logger.exception('Unable to open worksheet on Google Docs (unexpected situation): %s' % e)
         return None
 
     return gdc_worksheet
@@ -522,7 +533,7 @@ def write_gdocs(date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp):
         except AttributeError, e:
             logger.error('Unable to add new row (invalid data) to Google Docs worksheet: %s' % e)
         except Exception, e:
-            logger.error('Unable to add new row (unexpected situation): %s' % e)
+            logger.exception('Unable to add new row (unexpected situation): %s' % e)
 
 
 def publish_data(s_cpu, s_humidity, s_pressure, s_temp, s_wu):
@@ -535,8 +546,6 @@ def publish_data(s_cpu, s_humidity, s_pressure, s_temp, s_wu):
     :param s_temp: Plotly stream for BMP temperature readout
     :param s_wu: Plotly strem for Weather Underground temperature readout
     """
-    global DATA_QUEUE
-
     logger = logging.getLogger(sys._getframe().f_code.co_name)
 
     while True:
@@ -554,7 +563,7 @@ def publish_data(s_cpu, s_humidity, s_pressure, s_temp, s_wu):
 
         while True:
             try:
-                date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp = DATA_QUEUE.get(block=True)
+                date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp = DATA_QUEUE.get()
 
                 # write to Google Docs
                 write_gdocs(date_stamp, cpu_temp, bmp_temp, dht_hum, bmp_pres, wu_temp)
@@ -667,6 +676,8 @@ def run():
 
     # setup signal handler
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGHUP, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     # preferably daemonize
     if my_daemon:
