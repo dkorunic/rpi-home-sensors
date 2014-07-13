@@ -408,6 +408,8 @@ def read_weather_underground(weather_underground_url=None):
     :param weather_underground_url: Full Weather Underground API url for current city, state and with proper API key
     :return: temperature in Celsius, real or fake temperature
     """
+    global WU_FAKE_TEMP
+
     logger = logging.getLogger(sys._getframe().f_code.co_name)
 
     if weather_underground_url is None:
@@ -425,7 +427,7 @@ def read_weather_underground(weather_underground_url=None):
         return WU_FAKE_TEMP
     except Exception, e:
         logger.exception('Unable to contact Weather Underground (unexpected situation): %s' % e)
-        return None
+        return WU_FAKE_TEMP
 
     try:
         parsed_json = json.loads(json_string)
@@ -445,6 +447,7 @@ def read_weather_underground(weather_underground_url=None):
         logger.warning('Received non-float temperature from Weather Underground: %s' % str(temp_c))
         return WU_FAKE_TEMP
 
+    WU_FAKE_TEMP = temp_c
     return temp_c
 
 
